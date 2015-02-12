@@ -67,6 +67,12 @@ config TOUCHSCREEN_ATMEL_MAXTOUCH
          To compile this driver as a module, choose M here: the
          module will be called maXTouch.
 
+config TOUCHSCREEN_ATMEL_MXT_TS_S2W
+    tristate "Sweep-to-wake module for Atmel maXTouch based touchscreens"
+    default n
+    help
+      Say Y here if you want to enable sweep-to-wake for Atmel maXTouch.
+
 config TOUCHSCREEN_AD7879
 	tristate "Analog Devices AD7879-1/AD7889-1 touchscreen interface"
 	help
