@@ -27,6 +27,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/string.h>
 #include <linux/workqueue.h>
+#include <linux/kobject.h>
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
@@ -472,40 +473,36 @@ struct mxt_data {
 };
 
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT_TS_S2W
+
+/*** sysfs interface of S2W and DT2W ***/
+static struct kobject *s2w_dt2w_kobj;
+static struct mxt_dt2w *mxt_data_dt2w;
+static struct mxt_s2w *mxt_data_s2w;
+static unsigned int mxt_data_irq;
+
 static ssize_t dt2w_enabled_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	struct mxt_data *data = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", data->dt2w.enabled);
+	return sprintf(buf, "%d\n", mxt_data_dt2w->enabled);
 }
 
 static ssize_t s2w_enabled_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	struct mxt_data *data = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", data->s2w.enabled);
+	return sprintf(buf, "%d\n", mxt_data_s2w->enabled);
 }
 
 static ssize_t dt2w_enabled_store(struct device *dev,
 				struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct mxt_data *data = dev_get_drvdata(dev);
 	int val;
-
-	if (data->wake_common.suspended) {
-		dev_err(dev, "%s: the screen must be on\n", __func__);
-		return -EPERM;
-	}
-
 	sscanf(buf, "%d", &val);
-	if (val != 0 && data->dt2w.enabled == 0) {
-		data->dt2w.enabled = 1;
-		irq_set_irq_wake(data->irq, 1);
-	} else if (data->dt2w.enabled == 1) {
-		data->dt2w.enabled = 0;
-		irq_set_irq_wake(data->irq, 0);
+	if (val != 0 && mxt_data_dt2w->enabled == 0) {
+		mxt_data_dt2w->enabled = 1;
+		irq_set_irq_wake(mxt_data_irq, 1);
+	} else if (mxt_data_dt2w->enabled == 1) {
+		mxt_data_dt2w->enabled = 0;
+		irq_set_irq_wake(mxt_data_irq, 0);
 	}
 
 	return count;
@@ -514,21 +511,14 @@ static ssize_t dt2w_enabled_store(struct device *dev,
 static ssize_t s2w_enabled_store(struct device *dev,
 				struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct mxt_data *data = dev_get_drvdata(dev);
 	int val;
-
-	if (data->wake_common.suspended) {
-		dev_err(dev, "%s: the screen must be on\n", __func__);
-		return -EPERM;
-	}
-
 	sscanf(buf, "%d", &val);
-	if (val != 0 && data->s2w.enabled == 0) {
-		data->s2w.enabled = 1;
-		irq_set_irq_wake(data->irq, 1);
-	} else if (data->s2w.enabled == 1) {
-		data->s2w.enabled = 0;
-		irq_set_irq_wake(data->irq, 0);
+	if (val != 0 && mxt_data_s2w->enabled == 0) {
+		mxt_data_s2w->enabled = 1;
+		irq_set_irq_wake(mxt_data_irq, 1);
+	} else if (mxt_data_s2w->enabled == 1) {
+		mxt_data_s2w->enabled = 0;
+		irq_set_irq_wake(mxt_data_irq, 0);
 	}
 
 	return count;
@@ -544,14 +534,12 @@ static DEVICE_ATTR(s2w_enabled, S_IWUSR | S_IRUGO,
 				static ssize_t _name_show(struct device *dev,		\
 				struct device_attribute *attr, char *buf)			\
 {																	\
-	struct mxt_data *data = dev_get_drvdata(dev);					\
 	return sprintf(buf, "%u\n", _ret_val);							\
 }																	\
 static ssize_t _name_store(struct device *dev,						\
 				struct device_attribute *attr,						\
 				const char *buf, size_t count)						\
 {																	\
-	struct mxt_data *data = dev_get_drvdata(dev);					\
 	sscanf(buf, "%u", &_ret_val);									\
 	return count;													\
 }																	\
@@ -559,35 +547,33 @@ static DEVICE_ATTR(_dev_name, S_IWUSR | S_IRUGO,					\
 				_name_show, _name_store);
 
 dt2w_dev_attr(dt2w_timeout_max, dt2w_timeout_max_show,
-				dt2w_timeout_max_store, data->dt2w.timeout_max)
+				dt2w_timeout_max_store, mxt_data_dt2w->timeout_max)
 dt2w_dev_attr(dt2w_timeout_min, dt2w_timeout_min_show,
-				dt2w_timeout_min_store, data->dt2w.timeout_min)
+				dt2w_timeout_min_store, mxt_data_dt2w->timeout_min)
 dt2w_dev_attr(dt2w_delta_x, dt2w_delta_x_show,
-				dt2w_delta_x_store, data->dt2w.delta_x)
+				dt2w_delta_x_store, mxt_data_dt2w->delta_x)
 dt2w_dev_attr(dt2w_delta_y, dt2w_delta_y_show,
-				dt2w_delta_y_store, data->dt2w.delta_y)
+				dt2w_delta_y_store, mxt_data_dt2w->delta_y)
 
 
 #define s2w_dev_attr(_dev_name, _name_show, _name_store, _ret_val)	\
 static ssize_t _name_show(struct device *dev,						\
 				struct device_attribute *attr, char *buf)			\
 {																	\
-	struct mxt_data *data = dev_get_drvdata(dev);					\
 	return sprintf(buf, "%u\n", _ret_val);							\
 }																	\
 static ssize_t _name_store(struct device *dev,						\
 				struct device_attribute *attr,						\
 				const char *buf, size_t count)						\
 {																	\
-	struct mxt_data *data = dev_get_drvdata(dev);					\
 	sscanf(buf, "%u", &_ret_val);									\
 	return count;													\
 }																	\
 static DEVICE_ATTR(_dev_name, S_IWUSR | S_IRUGO,					\
 				_name_show, _name_store);
 
-s2w_dev_attr(s2w_start, s2w_start_show, s2w_start_store, data->s2w.start)
-s2w_dev_attr(s2w_end, s2w_end_show, s2w_end_store, data->s2w.end)
+s2w_dev_attr(s2w_start, s2w_start_show, s2w_start_store, mxt_data_s2w->start)
+s2w_dev_attr(s2w_end, s2w_end_show, s2w_end_store, mxt_data_s2w->end)
 
 static struct attribute *s2w_attrs[] = {
 	&dev_attr_s2w_enabled.attr,
@@ -613,6 +599,8 @@ static const struct attribute_group dt2w_attr_group = {
 static const struct attribute_group s2w_attr_group = {
 	.attrs = s2w_attrs,
 };
+
+/*** End sysfs interface ***/
 
 static void dt2w_presspwr_work(struct work_struct *work)
 {
@@ -2307,6 +2295,9 @@ static int mxt_initialize(struct mxt_data *data)
 
 	if (data->s2w.enabled || data->dt2w.enabled)
 		irq_set_irq_wake(data->irq, 1);
+		
+	mxt_data_dt2w = &data->dt2w;
+	mxt_data_s2w = &data->s2w;
 #endif
 	return 0;
 
@@ -3575,6 +3566,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	data->input_dev = input_dev;
 	data->pdata = pdata;
 	data->irq = client->irq;
+	mxt_data_irq = client->irq;
 
 	INIT_DELAYED_WORK(&data->force_calibrate_delayed_work, mxt_force_calibrate_delayed_work);
 	INIT_DELAYED_WORK(&data->disable_antipalm_delayed_work, mxt_disable_antipalm_delayed_work);
@@ -3706,6 +3698,13 @@ static int __devinit mxt_probe(struct i2c_client *client,
 
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT_TS_S2W
 	INIT_WORK(&data->dt2w.work, dt2w_presspwr_work);
+	
+	s2w_dt2w_kobj = kobject_create_and_add("android_touch", NULL);
+
+	if (!s2w_dt2w_kobj) {
+		dev_err(&client->dev, "%s can't create kernel object", __FUNCTION__);
+		return -ENOMEM; 
+	}
 
 	data->dt2w.pwrdev = input_allocate_device();
 	if (!data->dt2w.pwrdev) {
@@ -3723,7 +3722,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 		goto err_free_dt2w;
 	}
 
-	error = sysfs_create_group(&client->dev.kobj, &dt2w_attr_group);
+	error = sysfs_create_group(s2w_dt2w_kobj, &dt2w_attr_group);
 	if (error) {
 		dev_err(&client->dev, "Can't create dt2w device group: %d\n", error);
 		goto err_unregister_dt2w;
@@ -3748,7 +3747,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 		goto err_free_s2w;
 	}
 
-	error = sysfs_create_group(&client->dev.kobj, &s2w_attr_group);
+	error = sysfs_create_group(s2w_dt2w_kobj, &s2w_attr_group);
 	if (error) {
 		dev_err(&client->dev, "Can't create s2w device group: %d\n", error);
 		goto err_unregister_s2w;
@@ -3845,8 +3844,10 @@ static int __devexit mxt_remove(struct i2c_client *client)
 	free_irq(data->irq, data);
 
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT_TS_S2W
-	sysfs_remove_group(&client->dev.kobj, &dt2w_attr_group);
-	sysfs_remove_group(&client->dev.kobj, &s2w_attr_group);
+	if (s2w_dt2w_kobj) {
+		sysfs_remove_group(s2w_dt2w_kobj, &dt2w_attr_group);
+		sysfs_remove_group(s2w_dt2w_kobj, &s2w_attr_group);
+	}
 	input_unregister_device(data->dt2w.pwrdev);
 	input_unregister_device(data->s2w.pwrdev);
 #endif
