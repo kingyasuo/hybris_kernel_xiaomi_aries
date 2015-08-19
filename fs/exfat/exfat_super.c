@@ -372,11 +372,11 @@ static int exfat_d_hashi(const struct dentry *dentry, const struct inode *inode,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0)
 static int exfat_cmpi(const struct dentry *parent, const struct dentry *dentry,
-                unsigned int len, const char *str, const struct qstr *name)
+		unsigned int len, const char *str, const struct qstr *name)
 #else
 static int exfat_cmpi(const struct dentry *parent, const struct inode *pinode,
-                const struct dentry *dentry, const struct inode *inode,
-                unsigned int len, const char *str, const struct qstr *name)
+		const struct dentry *dentry, const struct inode *inode,
+		unsigned int len, const char *str, const struct qstr *name)
 #endif
 {
 	struct nls_table *t = EXFAT_SB(parent->d_sb)->nls_io;
@@ -386,7 +386,7 @@ static int exfat_cmpi(const struct dentry *parent, const struct inode *pinode,
 	blen = __exfat_striptail_len(len, str);
 	if (alen == blen) {
 		if (t == NULL) {
-			if (strnicmp(name->name, str, alen) == 0)
+			if (strncasecmp(name->name, str, alen) == 0)
 				return 0;
 		} else if (nls_strnicmp(t, name->name, str, alen) == 0)
 			return 0;
@@ -396,11 +396,11 @@ static int exfat_cmpi(const struct dentry *parent, const struct inode *pinode,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0)
 static int exfat_cmp(const struct dentry *parent, const struct dentry *dentry,
-               unsigned int len, const char *str, const struct qstr *name)
+		unsigned int len, const char *str, const struct qstr *name)
 #else
 static int exfat_cmp(const struct dentry *parent, const struct inode *pinode,
-               const struct dentry *dentry, const struct inode *inode,
-               unsigned int len, const char *str, const struct qstr *name)
+		const struct dentry *dentry, const struct inode *inode,
+		unsigned int len, const char *str, const struct qstr *name)
 #endif
 {
 	unsigned int alen, blen;
@@ -573,7 +573,11 @@ static long exfat_generic_ioctl(struct file *filp,
 #endif
 {
 #if !(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36))
-	struct inode *inode = filp->f_dentry->d_inode;
+    #if !(LINUX_VERSION_CODE < KERNEL_VERSION(3,18,3))
+		  struct inode *inode = filp->f_path.dentry->d_inode;
+    #else
+		  struct inode *inode = filp->f_dentry->d_inode;
+	#endif
 #endif
 #ifdef CONFIG_EXFAT_KERNEL_DEBUG
 	unsigned int flags;
@@ -1303,13 +1307,20 @@ const struct inode_operations exfat_dir_inode_operations = {
 /*======================================================================*/
 /*  File Operations                                                     */
 /*======================================================================*/
-
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,1,0)
+static const char *exfat_follow_link(struct dentry *dentry, void **cookie)
+{
+	struct exfat_inode_info *ei = EXFAT_I(dentry->d_inode);
+	return *cookie = (char *)(ei->target);
+}
+#else
 static void *exfat_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	struct exfat_inode_info *ei = EXFAT_I(dentry->d_inode);
 	nd_set_link(nd, (char *)(ei->target));
 	return NULL;
 }
+#endif
 
 const struct inode_operations exfat_symlink_inode_operations = {
 	.readlink    = generic_readlink,
@@ -1332,9 +1343,11 @@ const struct file_operations exfat_file_operations = {
 	.write       = do_sync_write,
 	.aio_read    = generic_file_aio_read,
 	.aio_write   = generic_file_aio_write,
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	.read        = new_sync_read,
 	.write       = new_sync_write,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,0)
 	.read_iter   = generic_file_read_iter,
 	.write_iter  = generic_file_write_iter,
 #endif
@@ -1585,8 +1598,11 @@ static ssize_t exfat_direct_IO(int rw, struct kiocb *iocb,
 					   const struct iovec *iov,
 					   loff_t offset, unsigned long nr_segs)
 #endif
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 static ssize_t exfat_direct_IO(int rw, struct kiocb *iocb,
+					   struct iov_iter *iter, loff_t offset)
+#else /* >= 4.1.x */
+static ssize_t exfat_direct_IO(struct kiocb *iocb,
 					   struct iov_iter *iter, loff_t offset)
 #endif
 {
@@ -1595,6 +1611,11 @@ static ssize_t exfat_direct_IO(int rw, struct kiocb *iocb,
 	struct address_space *mapping = iocb->ki_filp->f_mapping;
 #endif
 	ssize_t ret;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
+	int rw;
+
+	rw = iov_iter_rw(iter);
+#endif
 
 	if (rw == WRITE) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,16,0)
@@ -1609,7 +1630,10 @@ static ssize_t exfat_direct_IO(int rw, struct kiocb *iocb,
 #endif
 			return 0;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	ret = blockdev_direct_IO(iocb, inode, iter,
+					offset, exfat_get_block);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,0)
 	ret = blockdev_direct_IO(rw, iocb, inode, iter,
 					offset, exfat_get_block);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0)
@@ -2071,6 +2095,7 @@ enum {
 	Opt_err_cont,
 	Opt_err_panic,
 	Opt_err_ro,
+	Opt_utf8_hack,
 	Opt_err,
 #ifdef CONFIG_EXFAT_DISCARD
 	Opt_discard,
@@ -2091,6 +2116,7 @@ static const match_table_t exfat_tokens = {
 	{Opt_err_cont, "errors=continue"},
 	{Opt_err_panic, "errors=panic"},
 	{Opt_err_ro, "errors=remount-ro"},
+	{Opt_utf8_hack, "utf8"},
 #ifdef CONFIG_EXFAT_DISCARD
 	{Opt_discard, "discard"},
 #endif /* CONFIG_EXFAT_DISCARD */
@@ -2196,6 +2222,8 @@ static int parse_options(char *options, int silent, int *debug,
 			opts->discard = 1;
 			break;
 #endif /* CONFIG_EXFAT_DISCARD */
+		case Opt_utf8_hack:
+			break;
 		default:
 			if (!silent)
 				printk(KERN_ERR "[EXFAT] Unrecognized mount option %s or missing value\n", p);
@@ -2441,7 +2469,11 @@ static void exfat_debug_kill_sb(struct super_block *sb)
 
 static struct file_system_type exfat_fs_type = {
 	.owner       = THIS_MODULE,
+#if defined(CONFIG_MACH_LGE) || defined(CONFIG_HTC_BATT_CORE)
+	.name        = "texfat",
+#else
 	.name        = "exfat",
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 	.get_sb      = exfat_get_sb,
 #else
@@ -2496,5 +2528,9 @@ module_exit(exit_exfat);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("exFAT Filesystem Driver");
 #ifdef MODULE_ALIAS_FS
+#if defined(CONFIG_MACH_LGE) || defined(CONFIG_HTC_BATT_CORE)
+MODULE_ALIAS_FS("texfat");
+#else
 MODULE_ALIAS_FS("exfat");
+#endif
 #endif
