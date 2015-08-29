@@ -524,10 +524,10 @@ static ssize_t s2w_enabled_store(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(dt2w_enabled, S_IWUSR | S_IRUGO,
+static DEVICE_ATTR(dt2w_enabled, 0666,
 		dt2w_enabled_show, dt2w_enabled_store);
 
-static DEVICE_ATTR(s2w_enabled, S_IWUSR | S_IRUGO,
+static DEVICE_ATTR(s2w_enabled, 0666,
 		s2w_enabled_show,s2w_enabled_store);
 
 #define dt2w_dev_attr(_dev_name, _name_show, _name_store, _ret_val)	\
@@ -543,7 +543,7 @@ static ssize_t _name_store(struct device *dev,						\
 	sscanf(buf, "%u", &_ret_val);									\
 	return count;													\
 }																	\
-static DEVICE_ATTR(_dev_name, S_IWUSR | S_IRUGO,					\
+static DEVICE_ATTR(_dev_name, 0666,					\
 				_name_show, _name_store);
 
 dt2w_dev_attr(dt2w_timeout_max, dt2w_timeout_max_show,
@@ -569,7 +569,7 @@ static ssize_t _name_store(struct device *dev,						\
 	sscanf(buf, "%u", &_ret_val);									\
 	return count;													\
 }																	\
-static DEVICE_ATTR(_dev_name, S_IWUSR | S_IRUGO,					\
+static DEVICE_ATTR(_dev_name, 0666,					\
 				_name_show, _name_store);
 
 s2w_dev_attr(s2w_start, s2w_start_show, s2w_start_store, mxt_data_s2w->start)
