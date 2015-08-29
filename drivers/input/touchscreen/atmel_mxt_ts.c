@@ -2856,7 +2856,7 @@ static DEVICE_ATTR(debug_enable, S_IWUSR | S_IRUSR, mxt_debug_enable_show,
 static DEVICE_ATTR(pause_driver, S_IWUSR | S_IRUSR, mxt_pause_show,
 		   mxt_pause_store);
 static DEVICE_ATTR(update_fw_flag, 0200, NULL, mxt_update_fw_flag_store);
-static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, mxt_disable_keys_show,
+static DEVICE_ATTR(disable_keys, 0666, mxt_disable_keys_show,
 		   mxt_disable_keys_store);
 
 static struct attribute *mxt_attrs[] = {
