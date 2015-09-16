@@ -162,7 +162,7 @@ int lm3554_write_reg(struct lm3554_data *torch_data, uint8_t reg, uint8_t val)
 int lm3554_init_registers(struct lm3554_data *torch_data)
 {
 	int err;
-	uint8_t err_flags;
+	uint8_t err_flags = 0;
 
 	err = lm3554_read_reg(torch_data, LM3554_TORCH_BRIGHTNESS, &err_flags);
 	if (err) {
@@ -279,7 +279,7 @@ static ssize_t lm3554_strobe_err_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
 	int err;
-	uint8_t err_flags;
+	uint8_t err_flags = 0;
 	struct i2c_client *client = container_of(dev->parent,
 						 struct i2c_client, dev);
 	struct lm3554_data *torch_data = i2c_get_clientdata(client);
@@ -320,7 +320,7 @@ static ssize_t lm3554_torch_store(struct device *dev,
 {
 	int err;
 	unsigned long torch_val = LED_OFF;
-	uint8_t val;
+	uint8_t val = 0;
 	struct i2c_client *client = container_of(dev->parent,
 						 struct i2c_client, dev);
 	struct lm3554_data *torch_data = i2c_get_clientdata(client);
@@ -367,7 +367,7 @@ static void lm3554_spot_light_brightness_set(struct led_classdev *led_cdev,
 				  enum led_brightness value)
 {
 	int err;
-	uint8_t val;
+	uint8_t val = 0;
 	unsigned long torch_val = value;
 
 	struct lm3554_data *torch_data =
@@ -427,8 +427,8 @@ static ssize_t lm3554_strobe_store(struct device *dev,
 {
 	int err;
 	unsigned long strobe_val = 0;
-	uint8_t val;
-	uint8_t strobe_brightness;
+	uint8_t val = 0;
+	uint8_t strobe_brightness = 0;
 	struct i2c_client *client = container_of(dev->parent,
 			struct i2c_client, dev);
 	struct lm3554_data *torch_data = i2c_get_clientdata(client);

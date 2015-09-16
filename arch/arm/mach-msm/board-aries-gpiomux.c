@@ -495,11 +495,13 @@ static struct gpiomux_setting cyts_int_sus_cfg = {
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
+/*
 static struct gpiomux_setting gpio_nc_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
 	.pull = GPIOMUX_PULL_NONE,
 };
+*/
 
 static struct msm_gpiomux_config cyts_gpio_configs[] __initdata = {
 	{	/* TS INTERRUPT */

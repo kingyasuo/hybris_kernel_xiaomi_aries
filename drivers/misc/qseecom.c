@@ -563,7 +563,7 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 					struct qseecom_command_scm_resp *resp)
 {
 	int ret = 0;
-	int rc = 0;
+	// int rc = 0;
 	uint32_t lstnr;
 	unsigned long flags;
 	struct qseecom_client_listener_data_irsp send_data_rsp;

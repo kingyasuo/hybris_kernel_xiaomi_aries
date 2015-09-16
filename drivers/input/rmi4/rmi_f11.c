@@ -2260,7 +2260,7 @@ static void rmi_f11_remove(struct rmi_function_container *fc)
 {
 	int attr_count = 0;
 	struct f11_data *f11 = fc->data;
-	struct rmi_device *rmi_dev = fc->rmi_dev;
+	// struct rmi_device *rmi_dev = fc->rmi_dev;
 #ifdef	CONFIG_RMI4_DEBUG
 	teardown_debugfs(rmi_dev);
 #endif
